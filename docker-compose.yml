@@ -9,12 +9,14 @@ services:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
     networks:
-      - chat-net
+      - chat_network
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 5s
       timeout: 5s
       retries: 12
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
 
   chat-service:
     build:
@@ -27,11 +29,72 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     networks:
-      - chat-net
+      - chat_network
+
+  postgres-app:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_APP_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_APP_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_APP_DB}
+    networks:
+      - chat_network
+    volumes:
+      - pg_app_data:/var/lib/postgresql/data
+    healthcheck:
+      # WICHTIG: Prüft, ob die DB Verbindungen annimmt. Erst wenn dieser Healthcheck
+      # erfolgreich ist, darf der migrate-Container starten.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_APP_USER:-chat_user} -d ${POSTGRES_APP_DB:-chat}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  postgres-keycloak:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_KC_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_KC_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_KC_DB}
+    networks:
+      - chat_network
+    volumes:
+      - pg_kc_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_KC_USER:-keycloak_user} -d ${POSTGRES_KC_DB:-keycloak}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  migrate:
+    image: flyway/flyway:10.15.0-alpine
+    command: -url=jdbc:postgresql://postgres-app:5432/${POSTGRES_APP_DB} -user=${POSTGRES_APP_USER} -password=${POSTGRES_APP_PASSWORD} -connectRetries=10 migrate
+    volumes:
+      # Bindet den lokalen Ordner mit dem SQL-Skript in den Container ein
+      - ./infra/migrate/sql:/flyway/sql
+    networks:
+      - chat_network
+    depends_on:
+      postgres-app:
+        condition: service_healthy # Warte zwingend auf die DB
+    # restart: "no" ist essenziell! Der Container führt Flyway aus und beendet sich.
+    # Liefe er dauerhaft weiter (z.B. als Daemon), würde er im besten Fall Ressourcen verschwenden
+    # und im schlechtesten Fall den Start von abhaengigen Services blockieren.
+    restart: "no"
 
 # KEIN ports:-Eintrag in dieser Datei. Der einzige offene Port des
 # Gesamtsystems gehört später dem web-gateway.
 networks:
-  chat-net:
-    name: chat-net
+  chat_network:
+    name: chat_network
+    # WICHTIG: internal: true isoliert das Netzwerk komplett.
+    # Docker darf hier keine Ports nach aussen mappen, selbst wenn jemand
+    # versehentlich einen ports: Eintrag hinzufügen würde.
+    internal: true
+
+volumes:
+  pg_app_data:
+  pg_kc_data:
+  rabbitmq_data:
