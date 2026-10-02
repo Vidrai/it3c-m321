@@ -25,6 +25,7 @@ import java.util.UUID;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Der ganze Weg im Kleinen: Nachricht in chat.persist legen, warten,
@@ -135,6 +136,41 @@ class PersistQueueListenerIntegrationTest {
         assertNotNull(deadLetter);
         String deadLetterBody = new String(deadLetter.getBody(), StandardCharsets.UTF_8);
         assertEquals(brokenJson, deadLetterBody);
+    }
+
+    /**
+     * Gültiges JSON, das die Datenbank trotzdem ablehnt: ein Nullzeichen
+     * im Text. PostgreSQL erlaubt das in TEXT nicht. Der Stapel wird dann
+     * einzeln geschrieben, nur diese eine Nachricht geht in die DLQ
+     * (Spec 3.6).
+     *
+     * Im JSON steht das Nullzeichen als Escape-Folge aus sechs Zeichen,
+     * Backslash, u, 0, 0, 0, 0. Jackson macht daraus beim Lesen das
+     * Zeichen mit dem Code 0.
+     */
+    @Test
+    void sendsMessageRefusedByDatabaseToDeadLetterQueueAndStoresTheOthers() {
+        UUID roomId = UUID.randomUUID();
+        UUID refusedMessageId = UUID.randomUUID();
+        String firstJson = createJson(UUID.randomUUID(), roomId, "gültig vorher");
+        String refusedJson = createJson(refusedMessageId, roomId, "kaputt\\u0000");
+        String secondJson = createJson(UUID.randomUUID(), roomId, "gültig nachher");
+
+        Message firstDelivery = createDelivery(firstJson);
+        Message refusedDelivery = createDelivery(refusedJson);
+        Message secondDelivery = createDelivery(secondJson);
+        rabbitTemplate.send(QueueNames.PERSIST_QUEUE, firstDelivery);
+        rabbitTemplate.send(QueueNames.PERSIST_QUEUE, refusedDelivery);
+        rabbitTemplate.send(QueueNames.PERSIST_QUEUE, secondDelivery);
+
+        await().atMost(Duration.ofSeconds(30)).until(() -> countMessagesInRoom(roomId) == 2);
+        await().atMost(Duration.ofSeconds(10)).until(() -> countMessagesInQueue(QueueNames.DEAD_LETTER_QUEUE) == 1);
+
+        Message deadLetter = rabbitTemplate.receive(QueueNames.DEAD_LETTER_QUEUE, 5000);
+        assertNotNull(deadLetter);
+        String deadLetterBody = new String(deadLetter.getBody(), StandardCharsets.UTF_8);
+        String refusedId = refusedMessageId.toString();
+        assertTrue(deadLetterBody.contains(refusedId), "Falsche Nachricht in der DLQ: " + deadLetterBody);
     }
 
     /** Baut den JSON-Text, wie ihn der chat-service in die Queue legt (Spec 2.2). */

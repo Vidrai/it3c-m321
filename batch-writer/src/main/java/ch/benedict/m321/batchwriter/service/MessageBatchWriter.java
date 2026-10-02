@@ -7,6 +7,7 @@ import ch.benedict.m321.batchwriter.repository.MessageRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.TransactionException;
 
@@ -15,12 +16,16 @@ import java.util.List;
 
 /**
  * Bringt einen Stapel gelesener Nachrichten in die Datenbank, auch wenn
- * die Datenbank gerade weg ist.
+ * die Datenbank gerade weg ist oder eine einzelne Nachricht ablehnt.
  *
  * Diese Klasse sitzt zwischen Listener und Repository, damit der Listener
- * nur RabbitMQ kennt und das Repository nur SQL. Hier steckt die Regel
- * aus Spec 3.7: Datenbank weg heisst warten und denselben Stapel noch
- * einmal schreiben, nicht aufgeben.
+ * nur RabbitMQ kennt und das Repository nur SQL. Hier stecken die beiden
+ * Regeln für Fehler beim Schreiben:
+ *
+ * - Datenbank weg (Spec 3.7): warten und denselben Stapel noch einmal
+ *   schreiben, nicht aufgeben.
+ * - Datenbank lehnt den Inhalt ab (Spec 3.6): den Stapel einzeln
+ *   schreiben, damit nur die eine kaputte Nachricht in die DLQ geht.
  */
 @Service
 @Slf4j
@@ -32,33 +37,30 @@ public class MessageBatchWriter {
     private final BatchWriterProperties properties;
 
     /**
-     * Schreibt alle Nachrichten in einer Transaktion und versucht es so
-     * lange erneut, bis die Datenbank sie angenommen hat.
+     * Schreibt alle Nachrichten und versucht es so lange erneut, bis die
+     * Datenbank erreichbar war.
      *
-     * Kommt die Methode zurück, ist der COMMIT passiert. Während sie
-     * wartet, bleiben die Nachrichten bei RabbitMQ unbestätigt. Nichts
-     * geht verloren, auch wenn der Prozess in dieser Zeit stirbt.
+     * Kommt die Methode zurück, ist jede Nachricht entweder gespeichert
+     * oder in der zurückgegebenen Liste. Während sie wartet, bleiben die
+     * Nachrichten bei RabbitMQ unbestätigt. Nichts geht verloren, auch
+     * wenn der Prozess in dieser Zeit stirbt.
      *
+     * @return die Nachrichten, die die Datenbank abgelehnt hat. Im Normalfall leer.
      * @throws InterruptedException wenn der Dienst beim Warten heruntergefahren wird
      */
-    public void write(List<ReceivedMessage> receivedMessages) throws InterruptedException {
+    public List<ReceivedMessage> write(List<ReceivedMessage> receivedMessages) throws InterruptedException {
+        List<ReceivedMessage> refusedMessages = new ArrayList<>();
         if (receivedMessages.isEmpty()) {
-            return;
+            return refusedMessages;
         }
 
-        List<ChatMessage> messages = new ArrayList<>();
-        for (ReceivedMessage receivedMessage : receivedMessages) {
-            ChatMessage message = receivedMessage.message();
-            messages.add(message);
-        }
-
-        int batchSize = messages.size();
+        int batchSize = receivedMessages.size();
         int attempt = 1;
-        boolean stored = false;
-        while (!stored) {
+        boolean written = false;
+        while (!written) {
             try {
-                insertAndLog(messages);
-                stored = true;
+                refusedMessages = insertBatchOrOneByOne(receivedMessages);
+                written = true;
             } catch (DataAccessException | TransactionException exception) {
                 // TransactionException braucht es zusätzlich: Ist die Datenbank
                 // weg, scheitert schon das Öffnen der Transaktion, und diese
@@ -67,15 +69,71 @@ public class MessageBatchWriter {
                 attempt = attempt + 1;
             }
         }
+        return refusedMessages;
     }
 
-    /** Ein Schreibversuch für den ganzen Stapel, mit einer Zeile im Log. */
+    /**
+     * Der Normalfall ist ein einziger Bulk-INSERT. Nur wenn die Datenbank
+     * den Inhalt ablehnt, geht es einzeln weiter.
+     *
+     * Wichtig: DataIntegrityViolationException ist auch eine
+     * DataAccessException. Sie muss HIER gefangen werden, bevor sie in
+     * write() als "Datenbank weg" gilt. Sonst würde ein kaputter Stapel
+     * endlos wiederholt.
+     */
+    private List<ReceivedMessage> insertBatchOrOneByOne(List<ReceivedMessage> receivedMessages) {
+        List<ChatMessage> messages = new ArrayList<>();
+        for (ReceivedMessage receivedMessage : receivedMessages) {
+            ChatMessage message = receivedMessage.message();
+            messages.add(message);
+        }
+
+        try {
+            insertAndLog(messages);
+            return new ArrayList<>();
+        } catch (DataIntegrityViolationException exception) {
+            int batchSize = messages.size();
+            log.warn("Database refused batch of {} messages, writing them one by one: {}",
+                    batchSize, exception.getMessage());
+            return insertOneByOne(receivedMessages);
+        }
+    }
+
+    /** Ein Schreibversuch für den ganzen Stapel, in einer Transaktion, mit einer Zeile im Log. */
     private void insertAndLog(List<ChatMessage> messages) {
         int insertedCount = messageRepository.insertAll(messages);
 
         int batchSize = messages.size();
         int duplicateCount = batchSize - insertedCount;
         log.info("Stored batch of {} messages: {} new, {} duplicates skipped", batchSize, insertedCount, duplicateCount);
+    }
+
+    /**
+     * Der Rückfall: jede Nachricht in ihrer eigenen kleinen Transaktion.
+     *
+     * Kostet bis zu 500 Transaktionen statt einer, aber nur in diesem
+     * seltenen Fehlerfall. Was schon gespeichert ist, überspringt
+     * ON CONFLICT, falls der Rückfall nach einem Ausfall wiederholt wird.
+     */
+    private List<ReceivedMessage> insertOneByOne(List<ReceivedMessage> receivedMessages) {
+        List<ReceivedMessage> refusedMessages = new ArrayList<>();
+        int insertedCount = 0;
+
+        for (ReceivedMessage receivedMessage : receivedMessages) {
+            ChatMessage message = receivedMessage.message();
+            try {
+                int rowCount = messageRepository.insertOne(message);
+                insertedCount = insertedCount + rowCount;
+            } catch (DataIntegrityViolationException exception) {
+                log.warn("Database refused message {}, it goes to the dead letter queue: {}",
+                        message.id(), exception.getMessage());
+                refusedMessages.add(receivedMessage);
+            }
+        }
+
+        int refusedCount = refusedMessages.size();
+        log.info("Stored {} messages one by one, {} refused", insertedCount, refusedCount);
+        return refusedMessages;
     }
 
     /**

@@ -88,10 +88,22 @@ public class PersistQueueListener {
         // Kommt dieser Aufruf zurück, ist der COMMIT passiert. Erst danach
         // wird bei RabbitMQ irgendetwas bestätigt. Ist die Datenbank weg,
         // wartet der Aufruf hier, bis sie wieder da ist (Spec 3.7).
-        messageBatchWriter.write(validMessages);
+        List<ReceivedMessage> refusedMessages = messageBatchWriter.write(validMessages);
+
+        // Was die Datenbank abgelehnt hat, geht wie eine ungültige Nachricht
+        // in die DLQ. Alles andere ist gespeichert (Spec 3.6).
+        List<ReceivedMessage> storedMessages = new ArrayList<>();
+        for (ReceivedMessage validMessage : validMessages) {
+            if (refusedMessages.contains(validMessage)) {
+                long deliveryTag = validMessage.deliveryTag();
+                invalidDeliveryTags.add(deliveryTag);
+            } else {
+                storedMessages.add(validMessage);
+            }
+        }
 
         rejectToDeadLetterQueue(channel, invalidDeliveryTags);
-        acknowledgeStored(channel, validMessages);
+        acknowledgeStored(channel, storedMessages);
     }
 
     /**
