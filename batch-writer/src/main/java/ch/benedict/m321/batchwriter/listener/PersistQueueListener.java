@@ -43,12 +43,22 @@ public class PersistQueueListener {
      * also für immer unbestätigt liegen lassen, und dieser Verbraucher
      * bekäme nichts Neues mehr. Darum geben wir den Stapel in diesem Fall
      * ausdrücklich mit basicNack an die Queue zurück.
+     *
+     * Dasselbe beim Herunterfahren, während auf die Datenbank gewartet wird:
+     * Der Stapel ist nicht gespeichert, also zurück in die Queue.
      */
     @RabbitListener(queues = QueueNames.PERSIST_QUEUE, containerFactory = "batchListenerContainerFactory")
     public void onBatch(List<Message> deliveries, Channel channel) throws IOException {
         long highestDeliveryTag = findHighestDeliveryTag(deliveries);
         try {
             processBatch(deliveries, channel);
+        } catch (InterruptedException exception) {
+            // Das Unterbrechungs-Signal wieder setzen, damit Spring sieht,
+            // dass dieser Thread aufhören soll.
+            Thread.currentThread().interrupt();
+            log.warn("Interrupted while waiting for the database, returning batch of {} messages to the queue",
+                    deliveries.size());
+            channel.basicNack(highestDeliveryTag, true, true);
         } catch (RuntimeException exception) {
             log.error("Unexpected error, returning batch of {} messages to the queue", deliveries.size(), exception);
             channel.basicNack(highestDeliveryTag, true, true);
@@ -58,7 +68,7 @@ public class PersistQueueListener {
     /**
      * Lesen, schreiben, bestätigen. In genau dieser Reihenfolge.
      */
-    private void processBatch(List<Message> deliveries, Channel channel) throws IOException {
+    private void processBatch(List<Message> deliveries, Channel channel) throws IOException, InterruptedException {
         List<ReceivedMessage> validMessages = new ArrayList<>();
         List<Long> invalidDeliveryTags = new ArrayList<>();
 
@@ -76,7 +86,8 @@ public class PersistQueueListener {
         }
 
         // Kommt dieser Aufruf zurück, ist der COMMIT passiert. Erst danach
-        // wird bei RabbitMQ irgendetwas bestätigt.
+        // wird bei RabbitMQ irgendetwas bestätigt. Ist die Datenbank weg,
+        // wartet der Aufruf hier, bis sie wieder da ist (Spec 3.7).
         messageBatchWriter.write(validMessages);
 
         rejectToDeadLetterQueue(channel, invalidDeliveryTags);
