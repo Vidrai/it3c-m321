@@ -28,6 +28,17 @@
             <artifactId>spring-boot-starter-jdbc</artifactId>
         </dependency>
 
+        <!-- Flyway legt beim Start die Tabelle an (Spec 4.3). Seit Flyway 10
+             steckt die Unterstützung für PostgreSQL in einem eigenen Artefakt. -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+
         <!-- Der Treiber wird nur zur Laufzeit gebraucht, nicht beim Übersetzen. -->
         <dependency>
             <groupId>org.postgresql</groupId>
