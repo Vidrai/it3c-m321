@@ -8,7 +8,12 @@ COPY chat-service/pom.xml chat-service/pom.xml
 COPY chat-service/src chat-service/src
 # Tests werden hier übersprungen: Testcontainers bräuchte einen Docker-Daemon
 # INNERHALB des Builds. Getestet wird vorher mit "mvn test".
-RUN mvn -q -pl chat-service -am package -DskipTests
+#
+# "-f chat-service/pom.xml" baut nur dieses eine Modul. Das Eltern-POM
+# findet Maven über ../pom.xml. Mit "-pl chat-service -am" würde Maven die
+# ganze Modulliste des Eltern-POMs prüfen und abbrechen, weil der Ordner
+# batch-writer in diesem Build-Container fehlt.
+RUN mvn -q -f chat-service/pom.xml package -DskipTests
 
 # Stufe 2: laufen
 FROM eclipse-temurin:21-jre

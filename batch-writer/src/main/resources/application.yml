@@ -1,0 +1,35 @@
+spring:
+  application:
+    name: batch-writer
+  # Kein Web-Starter im pom.xml: Spring startet keinen Webserver, der
+  # batch-writer hat keinen Port, auch intern nicht.
+  rabbitmq:
+    # Im Docker-Netz heisst der Broker "rabbitmq". Beim Start ausserhalb
+    # von Docker greift der Vorgabewert "localhost".
+    host: ${RABBITMQ_HOST:localhost}
+    port: 5672
+    username: ${RABBITMQ_USER:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+  datasource:
+    # Dieselben Variablennamen wie beim offiziellen Postgres-Image: eine
+    # Zeile in .env stellt den Container UND den batch-writer ein.
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:5432/${POSTGRES_DB:chat}
+    username: ${POSTGRES_USER:chat}
+    password: ${POSTGRES_PASSWORD:}
+    hikari:
+      # Ein Listener-Thread braucht eine Verbindung, eine zweite ist Reserve.
+      # Mehr Verbindungen erzeugen nur Leerlauf (Spec 5.2).
+      maximum-pool-size: 2
+      minimum-idle: 1
+      # Ist die Datenbank weg, nach 5 s melden statt 30 s still warten (Spec 3.7).
+      connection-timeout: 5000
+
+batch-writer:
+  batch-size: ${BATCH_SIZE:500}
+  batch-timeout-ms: ${BATCH_TIMEOUT_MS:200}
+  db-retry-delay-ms: ${DB_RETRY_DELAY_MS:2000}
+
+logging:
+  level:
+    # Im Unterricht wollen wir jeden Schritt sehen.
+    ch.benedict.m321: DEBUG
