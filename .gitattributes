@@ -1,0 +1,4 @@
+# Shell-Skripte und Dockerfiles immer mit LF auschecken, auch unter Windows.
+# Mit CRLF bricht bash ab ("$'\r': command not found").
+*.sh        text eol=lf
+Dockerfile  text eol=lf

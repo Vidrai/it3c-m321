@@ -1,6 +1,5 @@
-# Ausbaustufe 1: nur der Broker und der chat-service.
-# Postgres, Keycloak, web-gateway und batch-writer kommen in den
-# folgenden Schritten dazu.
+# Ausbaustufe 2: Broker, chat-service, Datenbank und batch-writer.
+# Keycloak und web-gateway kommen in den folgenden Schritten dazu.
 services:
 
   rabbitmq:
@@ -30,8 +29,62 @@ services:
     networks:
       - chat-net
 
+  postgres:
+    image: postgres:16-alpine
+    # Dieselben Variablennamen wie im batch-writer: Das Image legt beim
+    # ersten Start genau diesen Benutzer und diese Datenbank an.
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      # Die Daten überleben "docker compose down". Weg sind sie erst mit
+      # "docker compose down -v".
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - chat-net
+    healthcheck:
+      # $$ heisst: die Variable wird IM Container aufgelöst, nicht von Compose.
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  batch-writer:
+    build:
+      context: .
+      dockerfile: batch-writer/Dockerfile
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      # Vorgabewerte hinter ":-", falls eine ältere .env die Zeile nicht hat.
+      BATCH_SIZE: ${BATCH_SIZE:-500}
+      BATCH_TIMEOUT_MS: ${BATCH_TIMEOUT_MS:-200}
+      DB_RETRY_DELAY_MS: ${DB_RETRY_DELAY_MS:-2000}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    # Zweite Sicherung: Stürzt der Prozess doch einmal ab, startet Docker
+    # ihn neu. Unbestätigte Nachrichten liefert RabbitMQ dann erneut aus.
+    # Nach "docker compose stop" bleibt er gestoppt.
+    restart: unless-stopped
+    # Bewusst kein container_name: sonst liesse sich der Dienst nicht
+    # mit --scale batch-writer=2 vervielfachen.
+    networks:
+      - chat-net
+
 # KEIN ports:-Eintrag in dieser Datei. Der einzige offene Port des
 # Gesamtsystems gehört später dem web-gateway.
 networks:
   chat-net:
     name: chat-net
+
+volumes:
+  postgres-data:
