@@ -53,6 +53,7 @@ Gelten für **jede** Aufgabe, wie in [`plan-chat-service.md`](plan-chat-service.
 | 9 | Docker und docker-compose | Erst wenn der Dienst im Test läuft, lohnt sich der Container |
 | 10 | Abnahme-Skript für S2 bis S8 | Braucht den laufenden Stack aus 9 |
 | 11 | README nachführen | Zum Schluss, damit dort steht, was wirklich da ist |
+| 12 | Messwerte nachtragen | Erst nach dem Bauen gibt es echte Zahlen statt Schätzungen |
 
 ---
 
@@ -244,7 +245,11 @@ einen neuen. Der Test stoppt den Container über den Docker-Client (`stopContain
 innerhalb von 90 s alle 30 in der Tabelle, `chat.dlq` leer. Mit `DB_RETRY_DELAY_MS = 500` im Test,
 damit er nicht unnötig lange dauert.
 
-- [ ] Test schreiben. Fehlschlag: ohne Wiederholung landen die Nachrichten nie in der Tabelle.
+- [ ] Test schreiben. Fehlschlag: Ohne Wiederholung fängt der Listener die Exception als
+      «Unexpected error» und schickt den Stapel per `basicNack` sofort zurück, als heisse
+      Schleife. Am Ende landen die Nachrichten zwar trotzdem in der Tabelle, darum prüft der Test
+      zusätzlich im Log (`OutputCaptureExtension`): «Database not available» muss vorkommen,
+      «Unexpected error» darf nicht vorkommen.
 - [ ] Schleife einbauen, grün.
 - [ ] **Commit:** `feat: bei Datenbankausfall warten und denselben Stapel wiederholen`
 
@@ -338,6 +343,19 @@ und Plan.
 
 - **Test:** Jeder Befehl im README läuft so, wie er dort steht.
 - [ ] **Commit:** `docs: README auf den Stand mit batch-writer bringen`
+
+---
+
+## Aufgabe 12: Messwerte nachtragen
+
+**Dateien:** `docs/spec-batch-writer.md` (3.3 und Abnahmekriterium S4), dieser Plan (Aufgabe 6).
+
+Die Spec hatte für S4 «unter 30 Transaktionen» geschätzt. Gemessen sind 34 (Start mit Flyway
+plus 2 Stapel). Beim Test von Aufgabe 6 war der erwartete Fehlschlag falsch beschrieben. Beides
+wird korrigiert, statt es stehen zu lassen.
+
+- **Test:** Die Zahlen in der Spec stimmen mit der Messung überein.
+- [ ] **Commit:** `docs: Spezifikation und Plan mit Messwerten nachführen`
 
 ---
 

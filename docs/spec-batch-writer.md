@@ -207,8 +207,12 @@ von 60 s ist kein Thema, Engpass ist eher das Senden selbst.
   Millisekunden voll, der zweite gleich danach.
 - **Erwartet: 2 Schreib-Transaktionen für 1000 Nachrichten.** Liefert RabbitMQ einmal langsamer,
   als gesammelt wird, wird ein Stapel kleiner und es werden ein paar mehr. Dazu kommen beim Start
-  die Abfragen von Flyway, ob das Schema aktuell ist, grob 10 bis 20 kurze Transaktionen. Die
-  Obergrenze von 100 hat damit viel Abstand.
+  die Abfragen von Flyway, ob das Schema aktuell ist.
+- **Gemessen** (eingebettetes PostgreSQL 16, Flyway 11.7): Ein Start mit Flyway auf fertigem
+  Schema plus 2 Stapel zu 500 ergab in `pg_stat_database` **34 Transaktionen**. Davon schreiben
+  genau 2 Zeilen (`count(DISTINCT xmin)` = 2). Der Rest sind die Abfragen von Flyway und
+  Hintergrundarbeit von PostgreSQL. Die Obergrenze von 100 hat damit rund 60 Abstand. Wer misst,
+  zählt seine eigenen `psql`-Abfragen mit: jede ist eine Transaktion.
 - Damit nichts im Hintergrund Transaktionen erzeugt, ist der Verbindungspool klein
   (höchstens 2 Verbindungen, siehe 5.2). Es gibt keine Abfragen nach Zeitplan.
 
@@ -455,7 +459,7 @@ Nachrichten dieses Szenarios, obwohl alle auf demselben Stack ohne Aufräumen la
 | S3 | 1000 in der Tabelle, ≤ 60 s | `send 1000 $RAUM`, dann alle 2 s `sql "SELECT count(*) FROM message WHERE room_id='$RAUM'"` | `1000` innerhalb von 60 s |
 | S3 | Queue leer | `queue \| grep chat.persist` | `chat.persist  0  1` |
 | S4 | nichts verloren | `docker compose stop batch-writer`, `send 1000 $RAUM`, `docker compose start batch-writer`, Zählung wie S3 | `1000` |
-| S4 | ≤ 100 Transaktionen | vor dem Start und nach dem Schreiben (plus 12 s, bis die Statistik nachgeführt ist): `sql "SELECT xact_commit + xact_rollback FROM pg_stat_database WHERE datname = current_database()"` | Differenz ≤ 100 (erwartet: unter 30) |
+| S4 | ≤ 100 Transaktionen | vor dem Start und nach dem Schreiben (plus 12 s, bis die Statistik nachgeführt ist): `sql "SELECT xact_commit + xact_rollback FROM pg_stat_database WHERE datname = current_database()"` | Differenz ≤ 100 (gemessen: 34, siehe 3.3) |
 | S4 | Stapel wirklich gross | `sql "SELECT count(DISTINCT xmin::text) FROM message WHERE room_id='$RAUM'"` | ≤ 5. `xmin` ist die Nummer der Transaktion, die eine Zeile geschrieben hat. Das zählt *genau* die Schreib-Transaktionen |
 | S5 | genau eine Zeile | dieselbe JSON-Nachricht (Format 2.2, feste `id`) zweimal: `docker compose exec -T rabbitmq rabbitmqadmin -u "$RABBITMQ_USER" -p "$RABBITMQ_PASSWORD" publish exchange=amq.default routing_key=chat.persist properties='{"content_type":"application/json"}' payload="$JSON"`, dann `sql "SELECT count(*) FROM message WHERE id='$ID'"` | `1` |
 | S5 | DLQ leer | `queue \| grep chat.dlq` | `chat.dlq  0  0` |
