@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Führt die Szenarien S2 bis S8 aus der Bewertung aus, in dieser
+# Führt die Szenarien S2 bis S8 aus Bewertung 1 (batch-writer) aus, in dieser
 # Reihenfolge, auf demselben Stack, ohne Aufräumen dazwischen.
 # Gemessen wird wie in der Bewertung von innen: psql im Postgres-Container,
 # rabbitmqctl im RabbitMQ-Container. Die Befehle stehen auch in
@@ -11,7 +11,7 @@
 #
 # Aufruf im Wurzelverzeichnis, in Git Bash oder einer Linux-Shell:
 #   cp .env.example .env        # nur beim ersten Mal
-#   bash scripts/szenarien.sh
+#   bash scripts/szenarien-bewertung-1.sh
 
 set -u
 
