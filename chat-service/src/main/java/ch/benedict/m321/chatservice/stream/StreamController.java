@@ -3,6 +3,7 @@ package ch.benedict.m321.chatservice.stream;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -26,22 +27,30 @@ public class StreamController {
     /** 0 heisst: Die Verbindung läuft nie von selbst ab. Ein Chat bleibt offen. */
     private static final long NO_TIMEOUT = 0L;
 
-    private final ClientRegistry clientRegistry;
+    private final LiveDelivery liveDelivery;
 
     /**
-     * Öffnet den Stream für einen Raum und merkt sich den Client.
+     * Öffnet den Stream für einen Raum.
+     *
+     * Last-Event-ID schickt ein Client mit, der sich nach einem Abbruch neu
+     * verbindet: die id der letzten Nachricht, die er bekommen hat. Dann
+     * holt er zuerst alles Verpasste nach (S7). Beim ersten Verbinden
+     * fehlt der Header.
      *
      * Der Kommentar "connected" ist für SSE-Clients unsichtbar. Er sorgt
      * nur dafür, dass sofort etwas über die Leitung geht und der Client
      * sieht, dass die Verbindung steht, auch wenn noch niemand schreibt.
      */
     @GetMapping(path = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter stream(@RequestParam UUID roomId) throws IOException {
+    public SseEmitter stream(@RequestParam UUID roomId,
+                             @RequestHeader(name = "Last-Event-ID", required = false) String lastEventId)
+            throws IOException {
         SseEmitter client = new SseEmitter(NO_TIMEOUT);
-        clientRegistry.register(roomId, client);
 
         SseEventBuilder connected = SseEmitter.event().comment("connected");
         client.send(connected);
+
+        liveDelivery.connect(roomId, client, lastEventId);
         return client;
     }
 }
