@@ -7,6 +7,9 @@ import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.FanoutExchange;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
+import org.springframework.amqp.rabbit.connection.ConnectionFactory;
+import org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer;
+import ch.benedict.m321.chatservice.stream.DeliveryListener;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.context.annotation.Bean;
@@ -100,6 +103,29 @@ public class RabbitConfig {
     @Bean
     public Binding instanceDeliveryBinding(Queue instanceDeliveryQueue, FanoutExchange deliveryExchange) {
         return BindingBuilder.bind(instanceDeliveryQueue).to(deliveryExchange);
+    }
+
+    /**
+     * Der Abholer an der eigenen Queue: übergibt jede Nachricht roh an den
+     * DeliveryListener, ohne automatische Umwandlung (siehe dort, warum).
+     *
+     * - Ein einziger Abholer (concurrency 1): So bleibt die Reihenfolge
+     *   erhalten, in der die Nachrichten in der Queue liegen (S3).
+     * - defaultRequeueRejected false: Wirft der Listener doch einmal eine
+     *   Exception, wird die Nachricht verworfen statt endlos neu
+     *   zugestellt. Für die Live-Anzeige ist das richtig, gespeichert ist
+     *   sie über chat.persist trotzdem.
+     */
+    @Bean
+    public SimpleMessageListenerContainer deliveryListenerContainer(ConnectionFactory connectionFactory,
+                                                                    Queue instanceDeliveryQueue,
+                                                                    DeliveryListener deliveryListener) {
+        SimpleMessageListenerContainer container = new SimpleMessageListenerContainer(connectionFactory);
+        container.setQueues(instanceDeliveryQueue);
+        container.setMessageListener(deliveryListener);
+        container.setConcurrentConsumers(1);
+        container.setDefaultRequeueRejected(false);
+        return container;
     }
 
     /**

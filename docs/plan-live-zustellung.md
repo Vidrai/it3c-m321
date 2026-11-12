@@ -36,7 +36,7 @@ Grundlage: [`spec-live-zustellung.md`](spec-live-zustellung.md)
 
 **Test:** Zwei-Instanzen-Test (S3): beide Clients in Raum A bekommen alles, Raum B nichts
 
-**Geprüft und korrigiert:** (wird nach dem Schritt ausgefüllt)
+**Geprüft und korrigiert:** Geprüft, dass Nachrichten aus der eigenen Queue gelesen und nur an Clients im gleichen roomId geschickt werden. Jede Nachricht wird als SSE-Event mit id: und data: gesendet. RabbitMQ filtert nicht nach Raum; die Instanz entscheidet selbst, wer die Nachricht bekommt.
 
 ## Schritt 4: Nachholen mit Last-Event-ID
 

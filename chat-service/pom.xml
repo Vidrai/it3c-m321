@@ -63,6 +63,14 @@
             <artifactId>rabbitmq</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!-- "Warte höchstens 30 Sekunden, bis ..." lesbar hinschreiben,
+             statt Thread.sleep und Schleifen in jedem Test. -->
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
