@@ -48,7 +48,7 @@ Grundlage: [`spec-live-zustellung.md`](spec-live-zustellung.md)
 
 **Test:** Neuverbindungs-Test (S7)
 
-**Geprüft und korrigiert:** (wird nach dem Schritt ausgefüllt)
+**Geprüft und korrigiert:** Geprüft, dass pro Raum die letzten 1000 Nachrichten im Speicher liegen. Bei einer neuen Verbindung wird `Last-Event-ID` gelesen und zuerst alles nach dieser ID geschickt. Ist die ID unbekannt oder zu alt, werden die letzten 1000 Nachrichten erneut gesendet.
 
 ## Schritt 5: Stack und Doku
 
@@ -60,7 +60,7 @@ Grundlage: [`spec-live-zustellung.md`](spec-live-zustellung.md)
 
 **Test:** docker compose up -d --build, S2
 
-**Geprüft und korrigiert:** (wird nach dem Schritt ausgefüllt)
+**Geprüft und korrigiert:** Geprüft, dass `.env.example` alle nötigen Variablen enthält, die README-Tabelle «Stand» aktuell ist und `docker-compose.yml` korrekt ist. `docker compose up -d --build` startet alle Dienste, und in `docker compose ps` steht bei keinem Dienst ein veröffentlichter Port (`->`).
 
 ## Schritt 6: Prüfskript
 
