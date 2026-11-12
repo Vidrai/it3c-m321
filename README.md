@@ -40,11 +40,18 @@ docker run --rm --network chat-net curlimages/curl -s -X POST http://chat-servic
 docker compose exec postgres psql -U chat -d chat -c "SELECT sender_name, content, sent_at FROM message"
 ```
 
+Live mitlesen, was in einem Raum geschrieben wird (in einem zweiten Fenster, Strg+C beendet):
+
+```bash
+docker run --rm --network chat-net curlimages/curl -N \
+  "http://chat-service:8080/stream?roomId=3f2b1c4e-0000-0000-0000-000000000001"
+```
+
 ## Was gebaut wird
 
 | Baustein | Technologie | Aufgabe | Stand |
 |---|---|---|---|
-| chat-service | Spring Boot 3, Java 21 | Nimmt Nachrichten per `POST /messages` an, legt sie auf Queue und Fanout-Exchange | vorhanden |
+| chat-service | Spring Boot 3, Java 21 | Nimmt Nachrichten per `POST /messages` an, legt sie auf Queue und Fanout-Exchange. Stellt sie live per `GET /stream?roomId=…` (Server-Sent Events) an die Clients des Raums zu, mit Nachholen über `Last-Event-ID` | vorhanden, skalierbar mit `--scale chat-service=2` |
 | rabbitmq | RabbitMQ 3.13 | Message Queue zwischen den Services | vorhanden |
 | batch-writer | Spring Boot 3, Java 21 | Einziger Schreiber in die Datenbank: holt Nachrichten aus `chat.persist` und schreibt sie stapelweise | vorhanden |
 | postgres | PostgreSQL 16 | Speichert den Chat-Verlauf in der Tabelle `message`, Schema per Flyway aus dem batch-writer | vorhanden |
@@ -67,6 +74,10 @@ erreichbar.
   Vertrag der Queue, Verhalten in jedem Fehlerfall, Datenmodell, Abnahmekriterien.
 - [`docs/plan-batch-writer.md`](docs/plan-batch-writer.md) — Umsetzungsplan des `batch-writer`,
   eine Aufgabe pro Commit.
+- [`docs/spec-live-zustellung.md`](docs/spec-live-zustellung.md) — Spezifikation der
+  Live-Zustellung: Vertrag am Stream, Verhalten je Szenario, Queues, Abnahmekriterien.
+- [`docs/plan-live-zustellung.md`](docs/plan-live-zustellung.md) — Umsetzungsplan der
+  Live-Zustellung, mit den Aufträgen an die KI und den Prüfnotizen.
 - [`CLAUDE.md`](CLAUDE.md) — Codestil-Regeln für dieses Projekt. Gelten auch für dich.
 - [`docs/flipchart-chat-app.png`](docs/flipchart-chat-app.png) — das Flipchart aus der Lektion,
   von dem die Planung ausgeht.
