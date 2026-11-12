@@ -24,7 +24,7 @@ Grundlage: [`spec-live-zustellung.md`](spec-live-zustellung.md)
 
 **Test:** Verbindung wird geöffnet, Content-Type stimmt
 
-**Geprüft und korrigiert:** (wird nach dem Schritt ausgefüllt)
+**Geprüft und korrigiert:** Geprüft, dass GET /stream?roomId=… eine SSE-Verbindung öffnet und Content-Type: text/event-stream zurückgibt. Die Instanz speichert beim Verbinden, welcher Client zu welchem Raum gehört, und entfernt ihn wieder, wenn die Verbindung endet.
 
 ## Schritt 3: Zustellen nach Raum
 
