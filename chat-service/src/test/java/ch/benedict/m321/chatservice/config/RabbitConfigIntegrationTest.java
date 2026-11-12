@@ -42,6 +42,7 @@ class RabbitConfigIntegrationTest {
     @Qualifier("instanceDeliveryQueue")
     private Queue instanceDeliveryQueue;
 
+    /** Der Schreibweg chat.persist existiert im Broker. */
     @Test
     void declaresPersistQueue() {
         Properties properties = rabbitAdmin.getQueueProperties(QueueNames.PERSIST_QUEUE);
@@ -49,6 +50,7 @@ class RabbitConfigIntegrationTest {
         assertNotNull(properties);
     }
 
+    /** Das Abstellgleis chat.dlq existiert im Broker. */
     @Test
     void declaresDeadLetterQueue() {
         Properties properties = rabbitAdmin.getQueueProperties(QueueNames.DEAD_LETTER_QUEUE);

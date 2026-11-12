@@ -57,6 +57,7 @@ class MessagePublisherIntegrationTest {
         rabbitAdmin.purgeQueue(QueueNames.PERSIST_QUEUE);
     }
 
+    /** Die Nachricht landet im Schreibweg chat.persist. */
     @Test
     void publishesToPersistQueue() {
         ChatMessage message = createMessage("Hallo Schreibweg");
@@ -69,6 +70,7 @@ class MessagePublisherIntegrationTest {
         assertEquals("Hallo Schreibweg", persisted.content());
     }
 
+    /** Die Nachricht landet auch im Zustellweg, also in jeder Queue am Fanout. */
     @Test
     void publishesToDeliveryExchange() {
         // Wir spielen ein web-gateway: eigene Queue an den Fanout binden.

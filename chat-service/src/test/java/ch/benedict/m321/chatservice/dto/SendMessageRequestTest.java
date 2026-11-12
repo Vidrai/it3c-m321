@@ -22,12 +22,14 @@ class SendMessageRequestTest {
 
     private Validator validator;
 
+    /** Holt den Validator, der auch im laufenden Dienst die @NotNull- und @NotBlank-Regeln prüft. */
     @BeforeEach
     void setUp() {
         ValidatorFactory factory = Validation.buildDefaultValidatorFactory();
         this.validator = factory.getValidator();
     }
 
+    /** Eine vollständige Nachricht hat keine einzige Regelverletzung. */
     @Test
     void acceptsCompleteRequest() {
         SendMessageRequest request = new SendMessageRequest(
@@ -38,6 +40,7 @@ class SendMessageRequestTest {
         assertTrue(violations.isEmpty());
     }
 
+    /** Nur Leerzeichen sind kein Inhalt: genau eine Regel muss anschlagen. */
     @Test
     void rejectsBlankContent() {
         SendMessageRequest request = new SendMessageRequest(
@@ -48,6 +51,7 @@ class SendMessageRequestTest {
         assertEquals(1, violations.size());
     }
 
+    /** Ohne Raum weiss niemand, wohin die Nachricht gehört: abgelehnt. */
     @Test
     void rejectsMissingRoomId() {
         SendMessageRequest request = new SendMessageRequest(

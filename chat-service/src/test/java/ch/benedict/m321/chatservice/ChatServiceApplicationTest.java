@@ -11,6 +11,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 @SpringBootTest
 class ChatServiceApplicationTest {
 
+    /** Der kleinste mögliche Test: Startet die Anwendung überhaupt? */
     @Test
     void contextLoads() {
         // Kein Assert nötig. Fährt der Kontext nicht hoch, wirft Spring

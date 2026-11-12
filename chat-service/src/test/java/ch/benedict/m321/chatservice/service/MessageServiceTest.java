@@ -27,11 +27,13 @@ class MessageServiceTest {
         private ChatMessage published;
         private int publishCount;
 
+        /** Erzeugt das Doppel ohne RabbitTemplate, es sendet ja nie wirklich. */
         RecordingPublisher() {
             // Das Doppel benutzt das RabbitTemplate nie, deshalb null.
             super(null);
         }
 
+        /** Merkt sich die Nachricht und zählt mit, statt sie an RabbitMQ zu schicken. */
         @Override
         public void publish(ChatMessage message) {
             this.published = message;
@@ -39,6 +41,7 @@ class MessageServiceTest {
         }
     }
 
+    /** Der Server vergibt ID und Zeitstempel, nicht der Aufrufer. */
     @Test
     void assignsIdAndTimestamp() {
         RecordingPublisher publisher = new RecordingPublisher();
@@ -53,6 +56,7 @@ class MessageServiceTest {
         assertNotNull(response.sentAt());
     }
 
+    /** Genau eine Nachricht geht raus, mit derselben ID, die der Aufrufer zurückbekommt. */
     @Test
     void publishesExactlyOnceWithTheSameId() {
         RecordingPublisher publisher = new RecordingPublisher();
@@ -70,6 +74,7 @@ class MessageServiceTest {
         assertEquals("Hallo", publisher.published.content());
     }
 
+    /** Zweimal derselbe Text ergibt zwei verschiedene Nachrichten mit zwei IDs. */
     @Test
     void assignsADifferentIdEveryTime() {
         RecordingPublisher publisher = new RecordingPublisher();
