@@ -12,8 +12,15 @@ public final class QueueNames {
     /** Schreibweg: hier holt der batch-writer die Nachrichten ab. */
     public static final String PERSIST_QUEUE = "chat.persist";
 
-    /** Zustellweg: fanout an alle web-gateway-Instanzen. */
+    /** Zustellweg: fanout an alle chat-service-Instanzen. */
     public static final String DELIVERY_EXCHANGE = "chat.delivery";
+
+    /**
+     * Anfang des Namens der Queue, die jede Instanz für sich am Zustellweg
+     * anlegt. Dahinter kommt eine zufällige ID, damit sich zwei Instanzen
+     * nie dieselbe Queue teilen (Spec, Abschnitt Queues).
+     */
+    public static final String DELIVERY_QUEUE_PREFIX = "chat.delivery.";
 
     /** Dead Letter: was der batch-writer endgültig nicht verarbeiten kann. */
     public static final String DEAD_LETTER_QUEUE = "chat.dlq";
@@ -22,3 +29,4 @@ public final class QueueNames {
     private QueueNames() {
     }
 }
+

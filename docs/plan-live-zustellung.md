@@ -12,7 +12,7 @@ Grundlage: [`spec-live-zustellung.md`](spec-live-zustellung.md)
 
 **Test:** Integrationstest: Queue existiert, hängt an chat.delivery, hat die Grenze
 
-**Geprüft und korrigiert:** (wird nach dem Schritt ausgefüllt)
+**Geprüft und korrigiert:** Geprüft, dass jede Instanz beim Start ihre eigene Queue chat.delivery.<instanz-id> erstellt und an den Fanout chat.delivery bindet. Die Queue ist als auto-delete markiert, hat x-max-length: 1000 und x-overflow: drop-head. Damit wird sie geschlossen, wenn die Instanz weg ist, und bei Überlauf fliegt die älteste Nachricht heraus.
 
 ## Schritt 2: Stream-Endpunkt
 
