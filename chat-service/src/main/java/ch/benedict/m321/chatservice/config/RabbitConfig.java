@@ -28,10 +28,29 @@ import java.util.UUID;
 public class RabbitConfig {
 
     /**
-     * So viele Nachrichten hält die Queue einer Instanz höchstens. Hängt die
-     * Instanz (S6), läuft ihre Queue nicht ins Unendliche voll.
+     * So viele Nachrichten darf die Queue einer Instanz insgesamt halten
+     * (Spec, Abschnitt Queues). Hängt die Instanz (S6), läuft ihre Queue
+     * nicht ins Unendliche voll.
      */
-    public static final int DELIVERY_QUEUE_MAX_LENGTH = 1000;
+    public static final int DELIVERY_QUEUE_LIMIT = 1000;
+
+    /**
+     * So viele Nachrichten schickt RabbitMQ der Instanz höchstens auf
+     * einmal, bevor sie bestätigt sind (Prefetch).
+     */
+    public static final int DELIVERY_PREFETCH = 50;
+
+    /**
+     * Die Grenze, die RabbitMQ an der Queue durchsetzt (x-max-length).
+     *
+     * Warum nicht einfach 1000: x-max-length zählt nur die WARTENDEN
+     * Nachrichten. Dazu kommen die, die schon unterwegs zur Instanz sind und
+     * noch nicht bestätigt (höchstens der Prefetch). rabbitmqctl zählt beide.
+     * Beim ersten Prüfen mit 1000 wartenden und 250 unterwegs (Prefetch-
+     * Vorgabe von Spring) waren es 1250. Mit 950 + 50 sind es nie mehr als
+     * 1000.
+     */
+    public static final int DELIVERY_QUEUE_MAX_LENGTH = DELIVERY_QUEUE_LIMIT - DELIVERY_PREFETCH;
 
     /**
      * Der Schreibweg. "durable" heisst: die Queue überlebt einen Neustart
@@ -78,9 +97,10 @@ public class RabbitConfig {
      *   gelöscht.
      * - nonDurable: Ohne die Instanz hat die Queue keinen Sinn, also muss
      *   sie auch einen Neustart des Brokers nicht überleben.
-     * - maxLength 1000 mit dropHead: Hängt die Instanz, fliegt bei voller
-     *   Queue die älteste Nachricht raus (S6). Gespeichert ist sie trotzdem,
-     *   über chat.persist.
+     * - maxLength mit dropHead: Hängt die Instanz, fliegt bei voller Queue
+     *   die älteste Nachricht raus (S6). Gespeichert ist sie trotzdem, über
+     *   chat.persist. Zusammen mit dem Prefetch hält die Queue so nie mehr
+     *   als 1000 Nachrichten (siehe DELIVERY_QUEUE_MAX_LENGTH).
      */
     @Bean
     public Queue instanceDeliveryQueue() {
@@ -111,6 +131,8 @@ public class RabbitConfig {
      *
      * - Ein einziger Abholer (concurrency 1): So bleibt die Reihenfolge
      *   erhalten, in der die Nachrichten in der Queue liegen (S3).
+     * - Prefetch 50: Höchstens 50 Nachrichten sind gleichzeitig unterwegs
+     *   zur Instanz. Das hält die Queue samt diesen unter 1000 (S6).
      * - defaultRequeueRejected false: Wirft der Listener doch einmal eine
      *   Exception, wird die Nachricht verworfen statt endlos neu
      *   zugestellt. Für die Live-Anzeige ist das richtig, gespeichert ist
@@ -124,6 +146,7 @@ public class RabbitConfig {
         container.setQueues(instanceDeliveryQueue);
         container.setMessageListener(deliveryListener);
         container.setConcurrentConsumers(1);
+        container.setPrefetchCount(DELIVERY_PREFETCH);
         container.setDefaultRequeueRejected(false);
         return container;
     }

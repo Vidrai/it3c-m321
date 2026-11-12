@@ -60,8 +60,9 @@ class RabbitConfigIntegrationTest {
 
     /**
      * Die eigene Queue dieser Instanz existiert im Broker, mit genau den
-     * Einstellungen aus der Spezifikation: exclusive, auto-delete, höchstens
-     * 1000 Nachrichten, älteste fliegt raus.
+     * Einstellungen aus der Spezifikation: exclusive, auto-delete, eine
+     * Grenze (950 wartende, dazu höchstens 50 unterwegs, zusammen nie mehr
+     * als 1000), älteste fliegt raus.
      *
      * Gefragt wird RabbitMQ selbst über rabbitmqctl. So prüfen wir, was im
      * Broker angekommen ist, nicht nur, was in unserer Java-Bean steht.
@@ -79,7 +80,8 @@ class RabbitConfigIntegrationTest {
 
         assertTrue(queueName.startsWith(QueueNames.DELIVERY_QUEUE_PREFIX), queueName);
         assertTrue(queueLine.contains("true\ttrue"), "nicht exclusive und auto-delete: " + queueLine);
-        assertTrue(queueLine.contains("x-max-length") && queueLine.contains("1000"), queueLine);
+        String maxLength = String.valueOf(RabbitConfig.DELIVERY_QUEUE_MAX_LENGTH);
+        assertTrue(queueLine.contains("x-max-length") && queueLine.contains(maxLength), queueLine);
         assertTrue(queueLine.contains("drop-head"), queueLine);
     }
 
