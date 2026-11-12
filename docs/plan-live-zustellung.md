@@ -73,3 +73,17 @@ Grundlage: [`spec-live-zustellung.md`](spec-live-zustellung.md)
 **Test:** Skript läuft durch
 
 **Geprüft und korrigiert:** (wird nach dem Schritt ausgefüllt)
+
+## Änderung 1: Kommentare im bestehenden chat-service-Code (neu)
+
+**Änderungsgrund:** Beim Prüfen von S8 nach Schritt 4 gefunden: 18 Klassen und Methoden im bestehenden chat-service-Code (vor allem alte Tests) haben keinen Kommentar. S8 prüft den ganzen Ordner chat-service/, nicht nur den neuen Code.
+
+**Ziel:** Über jeder Klasse und Methode in chat-service/ steht ein Kommentar.
+
+**Warum an dieser Stelle:** Vor Schritt 6, weil das Prüfskript S8 sonst nicht besteht.
+
+**Auftrag an die KI:** Ergänze über jeder Klasse und Methode im chat-service, wo noch keiner steht, einen kurzen Kommentar auf Deutsch, der erklärt, warum es sie gibt.
+
+**Test:** S8-Prüfung aus dem Skript findet 0 Stellen, mvn test bleibt grün.
+
+**Geprüft und korrigiert:** (wird nach dem Schritt ausgefüllt)
