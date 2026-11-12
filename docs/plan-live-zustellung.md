@@ -72,7 +72,7 @@ Grundlage: [`spec-live-zustellung.md`](spec-live-zustellung.md)
 
 **Test:** Skript läuft durch
 
-**Geprüft und korrigiert:** (wird nach dem Schritt ausgefüllt)
+**Geprüft und korrigiert:** Das alte Skript aus Bewertung 1 heisst jetzt `scripts/szenarien-bewertung-1.sh`, das neue `scripts/szenarien.sh` prüft S2 bis S8 der Live-Zustellung. Das Skript hat einen echten Fehler gefunden: Die eingefrorene Instanz hielt in S6 1250 Nachrichten (1000 wartende + 250 unterwegs, die Prefetch-Vorgabe von Spring). Korrigiert auf höchstens 950 wartende + Prefetch 50, also nie mehr als 1000. Danach: 26 von 26 Kriterien bestanden.
 
 ## Änderung 1: Kommentare im bestehenden chat-service-Code (neu)
 
@@ -86,4 +86,4 @@ Grundlage: [`spec-live-zustellung.md`](spec-live-zustellung.md)
 
 **Test:** S8-Prüfung aus dem Skript findet 0 Stellen, mvn test bleibt grün.
 
-**Geprüft und korrigiert:** (wird nach dem Schritt ausgefüllt)
+**Geprüft und korrigiert:** 18 Kommentare im bestehenden Code ergänzt, am Code selbst nichts geändert. Die S8-Prüfung findet 0 Stellen ohne Kommentar und 0 Streams, `mvn test` bleibt mit 26 Tests grün.
